@@ -1,4 +1,5 @@
 import json
+import sys
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -93,24 +94,20 @@ def lien_avis(avis):
         + str(avis.get("idweb", ""))
     )
 
+
 def main():
     print("Recherche des marchés publics pour Klineme...")
     avis = rechercher()
     deja_envoyes = charger_historique()
 
-    if "--init-history" in os.sys.argv:
+    if "--init-history" in sys.argv:
         if STATE_FILE.exists():
             print("Historique déjà présent : aucun changement.")
             return
-        ids = sorted({
-            a["idweb"] for a in avis if a.get("idweb")
-        })
+
+        ids = sorted(a["idweb"] for a in avis if a.get("idweb"))
         STATE_FILE.write_text(
-            json.dumps(
-                {"sent_ids": ids},
-                ensure_ascii=False,
-                indent=2,
-            ),
+            json.dumps({"sent_ids": ids}, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         print(f"Historique initialisé : {len(ids)} avis enregistrés.")
@@ -121,32 +118,43 @@ def main():
         a for a in avis if a.get("idweb") not in deja_envoyes
     ]
 
-    print(f"Marchés ouverts repérés : {len(avis)}")
-    print(f"Nouveaux marchés : {len(nouveaux)}")
-
-    if not nouveaux:
-        print("Aucune nouvelle opportunité.")
-        return
-
     selection = nouveaux[:5]
     paris = ZoneInfo("Europe/Paris")
-    lignes = ["🔎 **Nouvelles opportunités BOAMP — Klineme**"]
 
-    for a in selection:
-        limite = a["_limite"].astimezone(paris)
+    lignes = [
+        "📊 **Bilan quotidien BOAMP — Klineme**",
+        f"Date : {datetime.now(paris).strftime('%d/%m/%Y')}",
+        f"Marchés ouverts repérés : {len(avis)}",
+        f"Nouvelles opportunités : {len(nouveaux)}",
+    ]
+
+    if selection:
+        lignes.extend(["", "🔎 **Nouvelles opportunités**"])
+
+        for a in selection:
+            limite = a["_limite"].astimezone(paris)
+            lignes.extend([
+                "",
+                f"**{a.get('objet', 'Objet non précisé')}**",
+                f"Acheteur : {a.get('nomacheteur') or 'Non précisé'}",
+                f"Date limite : {limite.strftime('%d/%m/%Y à %H:%M')} (Paris)",
+                lien_avis(a),
+            ])
+    else:
         lignes.extend([
             "",
-            f"**{a.get('objet', 'Objet non précisé')}**",
-            f"Acheteur : {a.get('nomacheteur') or 'Non précisé'}",
-            f"Date limite : {limite.strftime('%d/%m/%Y à %H:%M')} (Paris)",
-            lien_avis(a),
+            "Aucune nouvelle opportunité aujourd'hui.",
+            "La veille continue demain.",
         ])
 
     message = "\n".join(lignes)
     if len(message) > 1900:
-        message = message[:1850] + "\n\n… Consulte les avis sur BOAMP."
+        message = message[:1800] + "\n\nMessage raccourci."
 
-    if DRY_RUN:
+    print(f"Marchés ouverts : {len(avis)}")
+    print(f"Nouvelles opportunités : {len(nouveaux)}")
+
+    if "--dry-run" in sys.argv:
         print("\n--- TEST SANS ENVOI DISCORD ---\n")
         print(message)
         print("\nHistorique non modifié.")
@@ -163,6 +171,7 @@ def main():
         timeout=30,
     )
     reponse.raise_for_status()
+    print("Bilan Discord envoyé.")
 
     deja_envoyes.update(a["idweb"] for a in selection)
     STATE_FILE.write_text(
@@ -173,7 +182,9 @@ def main():
         ),
         encoding="utf-8",
     )
-    print(f"Message Discord envoyé. Avis mémorisés : {len(selection)}")
+
+    print(f"Historique mis à jour : {len(selection)} annonce(s) mémorisée(s).")
+
 
 if __name__ == "__main__":
     main()

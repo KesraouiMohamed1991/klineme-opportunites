@@ -1,76 +1,41 @@
-
 name: Klineme Opportunites
 
 on:
-  schedule:
-    - cron: "15 7 * * *"
-  workflow_dispatch:
+schedule:
+- cron: "15 7 * * *"
+workflow_dispatch:
 
 permissions:
-  contents: write
+contents: write
 
 jobs:
-  recherche:
-    runs-on: ubuntu-latest
+recherche:
+runs-on: ubuntu-latest
 
-    steps:
-      - name: Recuperer le depot
-        uses: actions/checkout@v4
+steps:
+  - name: Recuperer le depot
+    uses: actions/checkout@v4
 
-      - name: Installer Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+  - name: Installer Python
+    uses: actions/setup-python@v5
+    with:
+      python-version: "3.12"
 
-      - name: Installer les dependances
-        run: pip install requests
+  - name: Installer les dependances
+    run: pip install requests
 
-      - name: Tester Discord
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.WEBHOOK }}
-        run: |
-          python - <<'PY'
-          import os
-          import requests
+  - name: Rechercher les opportunites
+    env:
+      DISCORD_WEBHOOK: ${{ secrets.WEBHOOK }}
+    run: python opportunites.py
 
-          url = os.getenv("DISCORD_WEBHOOK", "").strip()
+  - name: Enregistrer l'historique
+    run: |
+      git config user.name "github-actions[bot]"
+      git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      git add opportunites_seen.json
+      if ! git diff --cached --quiet; then
+        git commit -m "Mise a jour historique opportunites"
+        git push
+      fi
 
-          if not url:
-              print("ERREUR : secret WEBHOOK absent ou vide.")
-              raise SystemExit(1)
-
-          try:
-              response = requests.post(
-                  url,
-                  json={
-                      "content": "Test technique Klineme Opportunites : Discord fonctionne."
-                  },
-                  timeout=15
-              )
-
-              print("Code HTTP Discord :", response.status_code)
-
-              if response.status_code not in (200, 204):
-                  print("Reponse Discord :", response.text[:300])
-
-              response.raise_for_status()
-
-          except requests.RequestException as e:
-              print("Echec de l'envoi Discord :", type(e).__name__)
-              raise SystemExit(1)
-          PY
-
-      - name: Rechercher les opportunites
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.WEBHOOK }}
-        run: python opportunites.py
-
-      - name: Enregistrer l'historique
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add opportunites_seen.json
-          if ! git diff --cached --quiet; then
-            git commit -m "Mise a jour historique opportunites"
-            git push
-          fi
