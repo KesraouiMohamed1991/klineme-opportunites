@@ -199,51 +199,66 @@ def construire_message(avis, nouveaux):
         f"Nouvelles opportunités : {len(nouveaux)}",
     ]
 
-    if not nouveaux:
+    if not avis:
         entete.extend([
             "",
-            "Aucune nouvelle opportunité aujourd'hui.",
+            "Aucun marché ouvert pertinent trouvé aujourd'hui.",
             "La veille continue demain.",
         ])
         return "\n".join(entete), []
 
-    lignes = entete + ["", "🔎 NOUVELLES OPPORTUNITÉS"]
+    nouveaux_ids = {
+        str(item.get("idweb", "")).strip()
+        for item in nouveaux
+    }
+
+    anciens = [
+        item for item in avis
+        if str(item.get("idweb", "")).strip() not in nouveaux_ids
+    ]
+
+    ordre = list(nouveaux) + anciens
+    lignes = entete + ["", "🔎 MARCHÉS À EXAMINER"]
     affiches = []
 
-    for item in nouveaux[:MAX_ALERTS]:
+    for item in ordre[:MAX_ALERTS]:
         limite = item["_limite"].astimezone(PARIS)
+        identifiant = str(item.get("idweb", "")).strip()
         objet = (item.get("objet") or "Objet non précisé").strip()
+        acheteur = (item.get("nomacheteur") or "Non précisé").strip()
 
-        if len(objet) > 200:
-            objet = objet[:197] + "..."
+        objet = objet[:177] + "..." if len(objet) > 180 else objet
+        acheteur = acheteur[:97] + "..." if len(acheteur) > 100 else acheteur
+
+        statut = (
+            "🆕 NOUVEAU"
+            if identifiant in nouveaux_ids
+            else "📌 Déjà signalé"
+        )
 
         bloc = [
             "",
-            f"**{objet}**",
-            f"Acheteur : {item.get('nomacheteur') or 'Non précisé'}",
+            f"{statut} — **{objet}**",
+            f"Acheteur : {acheteur}",
             f"Date limite : {limite.strftime('%d/%m/%Y à %H:%M')} (Paris)",
             f"<{lien_avis(item)}>",
         ]
 
         candidat = "\n".join(lignes + bloc)
-
         if len(candidat) > MAX_CHARS:
             break
 
         lignes.extend(bloc)
         affiches.append(item)
 
-    restantes = len(nouveaux) - len(affiches)
-
+    restantes = len(ordre) - len(affiches)
     if restantes > 0:
         lignes.extend([
             "",
-            f"{restantes} autre(s) opportunité(s) non affichée(s) "
-            "seront examinées lors des prochaines recherches.",
+            f"{restantes} autre(s) marché(s) non affiché(s).",
         ])
 
     message = "\n".join(lignes)
-
     if len(message) > 2000:
         message = message[:1950] + "\nMessage raccourci."
 
