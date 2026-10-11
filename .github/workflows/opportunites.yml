@@ -25,7 +25,7 @@ jobs:
 
       - name: Rechercher les opportunites
         env:
-          DISCORD_WEBHOOK: \${{ secrets.WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.WEBHOOK }}
         run: python opportunites.py
 
       - name: Enregistrer l'historique
